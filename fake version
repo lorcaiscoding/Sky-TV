@@ -1,0 +1,64 @@
+#include <Adafruit_NeoPixel.h>
+
+#define PIN 2 
+#define NUMPIXELS 64 
+Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+
+float cloudCover = 0;
+unsigned long lastUpdateTime = 0;
+const unsigned long updateInterval = 60000;
+
+void setup() {
+  Serial.begin(115200);
+  pixels.begin();
+  pixels.setBrightness(64);
+  generateRandomCloudCover();
+  displayCloudCover();
+}
+
+void loop() {
+  unsigned long currentTime = millis();
+
+  if (currentTime - lastUpdateTime >= updateInterval) {
+    generateRandomCloudCover();  
+    displayCloudCover();  
+    lastUpdateTime = currentTime;  
+  }
+}
+
+void generateRandomCloudCover() {
+  cloudCover = random(0, 101);
+  Serial.print("Cloud cover: ");
+  Serial.println(cloudCover);
+}
+
+void displayCloudCover() {
+  int whiteLEDs = round(NUMPIXELS * cloudCover / 100.0);
+  int blueLEDs = NUMPIXELS - whiteLEDs;  
+
+  int indices[NUMPIXELS];
+  for (int i = 0; i < NUMPIXELS; i++) {
+    indices[i] = i;
+  }
+
+  for (int i = 0; i < NUMPIXELS; i++) {
+    int j = random(NUMPIXELS);
+    int temp = indices[i];
+    indices[i] = indices[j];
+    indices[j] = temp;
+  }
+
+  for (int i = 0; i < whiteLEDs; i++) {
+    pixels.setPixelColor(indices[i], pixels.Color(255, 255, 255));
+  }
+
+  for (int i = whiteLEDs; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(indices[i], pixels.Color(0, 0, 255));
+  }
+
+  pixels.show();
+}
+
+
+
+
