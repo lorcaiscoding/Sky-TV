@@ -1,0 +1,105 @@
+#include <WiFiNINA.h>
+#include <ArduinoJson.h>
+#include <Adafruit_NeoPixel.h>
+
+#define PIN 2 
+#define NUMPIXELS 64 
+Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+
+const char* ssid = "ssid";
+const char* password = "password";
+
+const char* apiKey = "apikey";
+const char* server = "api.openweathermap.org";
+
+float cloudCover = 0;
+
+unsigned long lastApiCallTime = 0;
+const unsigned long apiCallInterval = 60000;
+
+void setup() {
+  Serial.begin(115200);
+  pixels.begin();
+  pixels.setBrightness(64);  // brightness25%
+  connectToWiFi();
+  getCloudCoverData();
+  displayCloudCover();
+}
+
+void loop() {
+  unsigned long currentTime = millis();
+
+  if (currentTime - lastApiCallTime >= apiCallInterval) {
+    getCloudCoverData();  
+    displayCloudCover();  
+    lastApiCallTime = currentTime;  
+  }
+}
+
+void connectToWiFi() {
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+}
+
+void getCloudCoverData() {
+  WiFiClient client;
+  if (client.connect(server, 80)) {
+    String url = "/data/2.5/weather?lat=40.6501&lon=-73.9496&appid=" + String(apiKey);
+    client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                 "Host: " + server + "\r\n" +
+                 "Connection: close\r\n\r\n");
+
+    while (client.connected() || client.available()) {
+      if (client.available()) {
+        String line = client.readStringUntil('\n');
+        if (line.startsWith("{")) {
+          DynamicJsonDocument doc(1024);
+          deserializeJson(doc, line);
+          cloudCover = doc["clouds"]["all"];
+          Serial.print("Cloud cover: ");
+          Serial.println(cloudCover);
+          break;
+        }
+      }
+    }
+  } else {
+    Serial.println("Connection to API server failed");
+  }
+  client.stop();
+}
+
+void displayCloudCover() {
+  int whiteLEDs = round(NUMPIXELS * cloudCover / 100.0);
+  int blueLEDs = NUMPIXELS - whiteLEDs;  
+
+  int indices[NUMPIXELS];
+  for (int i = 0; i < NUMPIXELS; i++) {
+    indices[i] = i;
+  }
+
+  for (int i = 0; i < NUMPIXELS; i++) {
+    int j = random(NUMPIXELS);
+    int temp = indices[i];
+    indices[i] = indices[j];
+    indices[j] = temp;
+  }
+
+  for (int i = 0; i < whiteLEDs; i++) {
+    pixels.setPixelColor(indices[i], pixels.Color(255, 255, 255));  // white
+  }
+
+  for (int i = whiteLEDs; i < NUMPIXELS; i++) {
+    pixels.setPixelColor(indices[i], pixels.Color(0, 0, 255));  // blue
+  }
+
+  pixels.show();
+}
